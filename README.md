@@ -17,6 +17,36 @@ LetMeIn2 is a completely new re-write of LetMeIn that focuses on scalability and
 
 A user, let's say Alice, visits the website, she selects a floor. Her phone POSTs to the server specifying where she is. The server will send an MQTT message on the letmein2/req topic with Alice's location. This will cause all letmein devices on floor to light up and make noise, indicating Alice's location. There will also be a message with an action button sent in Slack, listening for any updates to the request. Alice's phone will redirect her to a waiting screen (/anybody_home) that does another POST request (could be a GET) that waits for the server to give her a 200 response. On the backend, two things could happen: One is that someone on floor could hit one of the buttons (or respond by pressing the button in Slack) and go get her. That causes another MQTT message on the letmein2/ack topic, which answer's Alice's phone with a 200 message, and she's notified that someone is coming for her. The other is that nobody is there to answer the box (or maybe they don't like Alice), and after a set amount of time, the server sends Alice's phone a 408 message, and will send out a timeout message on the letmein2/ack topic.
 
+```mermaid
+sequenceDiagram
+    actor Alice
+    participant Phone
+    participant Server
+    participant MQTT as "MQTT Broker"
+    participant Devices as "Letmein Devices"
+    participant Slack
+
+    Alice ->> Phone: Visits website, selects floor
+    Phone ->> Server: POST location (Alice's location)
+
+    Server ->> MQTT: Publish letmein2/req (Alice's location)
+    MQTT ->> Devices: Light up & make noise
+    MQTT ->> Slack: Send message + action button
+
+    Phone ->> Server: Redirect to /anybody_home (POST/GET)
+
+    alt Someone responds (floor device or Slack)
+        Devices ->> Server: Button pressed
+        Slack ->> Server: Action button clicked
+        Server ->> MQTT: Publish letmein2/ack
+        Server -->> Phone: 200 OK ("someone coming")
+    else Timeout / no response
+        Server -->> Phone: 408 Timeout
+        Server ->> MQTT: Publish letmein2/ack (timeout)
+    end
+```
+
+
 ## Developing
 
 ### Terminology
